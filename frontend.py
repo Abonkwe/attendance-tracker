@@ -359,3 +359,7 @@ elif choice == "Reports":
             st.info("No cohorts found.")
     else:
         st.info("No programs found.")
+
+
+
+#A full-stack application developed for the iSpark Inno technical assessment. The system manages technical training programs, cohorts, trainers, trainees, and class attendance using a decoupled architecture with a RESTful backend and an interactive frontend.

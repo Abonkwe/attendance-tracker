@@ -5,22 +5,20 @@ from psycopg.rows import dict_row
 import database
 import schemas
 
-# 1. The Lifespan Manager
-# This tells FastAPI what to do when the server turns on and turns off.
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # --- ON STARTUP ---
+    # on startup
     print("Starting up: Opening Database Connection Pool...")
     database.pool = ConnectionPool(conninfo=database.DATABASE_URL)
     
-    yield # This means "Let the FastAPI app run now"
+    yield 
     
-    # --- ON SHUTDOWN ---
+    # on shutdown
     print("Shutting down: Closing Database Connection Pool...")
     if database.pool:
         database.pool.close()
 
-# 2. Initialize the FastAPI app
+
 app = FastAPI(
     title="iSpark Attendance API", 
     description="API for managing cohorts, trainers, and student attendance.",
@@ -37,7 +35,6 @@ def test_database_connection(db = Depends(database.get_db)):
         
         cur.execute("SELECT name, description FROM programs;")
         
-        # Fetch all results from the query
         programs_from_db = cur.fetchall()
         
     return {
@@ -56,7 +53,6 @@ def create_program(program: schemas.ProgramCreate, db = Depends(database.get_db)
     """
     try:
         with db.cursor(row_factory=dict_row) as cur:
-            # We use RETURNING to instantly get the newly generated ID and Timestamp back
             cur.execute(
                 """
                 INSERT INTO programs (name, description) 
@@ -72,14 +68,13 @@ def create_program(program: schemas.ProgramCreate, db = Depends(database.get_db)
             
             return new_program
             
-    # Handle the case where they try to create a program that already exists
+    # case where they try to create a program that already exists
     except Exception as e:
-        # Always rollback on an error so the connection doesn't get stuck
+        #   rollback on an error so the connection doesn't get stuck
         db.rollback() 
         # Check if the error is our 'unique' constraint failing
         if "unique constraint" in str(e).lower():
             raise HTTPException(status_code=400, detail="A program with this name already exists.")
-        # If it's some other error, print it and return a 500
         print(f"Database error: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -97,9 +92,8 @@ def list_programs(db = Depends(database.get_db)):
     return programs
 
 
-# ==========================================
-# 2. COHORTS ENDPOINTS
-# ==========================================
+# cohort endpoints
+##################################
 
 @app.post("/cohorts", response_model=schemas.CohortResponse, status_code=status.HTTP_201_CREATED)
 def create_cohort(cohort: schemas.CohortCreate, db = Depends(database.get_db)):
@@ -124,7 +118,6 @@ def create_cohort(cohort: schemas.CohortCreate, db = Depends(database.get_db)):
         db.rollback()
         error_msg = str(e).lower()
         
-        # Here we catch the database constraints and turn them into user-friendly errors!
         if "foreign key constraint" in error_msg:
             raise HTTPException(status_code=400, detail="The specified program_id does not exist.")
         elif "unique constraint" in error_msg:
@@ -180,9 +173,12 @@ def get_cohort(cohort_id: int, db = Depends(database.get_db)):
     return cohort
 
 
-# ==========================================
-# 3. TRAINERS ENDPOINTS
-# ==========================================
+
+
+#trainer endpoints
+###################################
+
+
 
 @app.post("/trainers", response_model=schemas.TrainerResponse, status_code=status.HTTP_201_CREATED)
 def create_trainer(trainer: schemas.TrainerCreate, db = Depends(database.get_db)):
@@ -222,9 +218,11 @@ def assign_trainer_to_cohort(cohort_id: int, assignment: schemas.TrainerAssign, 
             raise HTTPException(status_code=400, detail="Invalid cohort_id or trainer_id.")
         raise HTTPException(status_code=500, detail="Internal server error")
 
-# ==========================================
-# 4. TRAINEES ENDPOINTS
-# ==========================================
+
+
+
+# trainee endpoints
+##############################################
 
 @app.post("/trainees", response_model=schemas.TraineeResponse, status_code=status.HTTP_201_CREATED)
 def create_trainee(trainee: schemas.TraineeCreate, db = Depends(database.get_db)):
@@ -266,9 +264,9 @@ def enroll_trainee_in_cohort(cohort_id: int, enrollment: schemas.TraineeEnroll, 
 
 
 
-# ==========================================
-# 5. CLASSES ENDPOINTS
-# ==========================================
+# classes endpoints
+
+###################################
 
 @app.post("/cohorts/{cohort_id}/classes", response_model=schemas.ClassResponse, status_code=status.HTTP_201_CREATED)
 def schedule_class(cohort_id: int, class_data: schemas.ClassCreate, db = Depends(database.get_db)):
@@ -288,8 +286,6 @@ def schedule_class(cohort_id: int, class_data: schemas.ClassCreate, db = Depends
             return new_class
     except Exception as e:
         db.rollback()
-        # Enforces Rule 3: The database composite foreign key will reject this 
-        # if the trainer is not assigned to the cohort!
         if "foreign key" in str(e).lower():
             raise HTTPException(status_code=400, detail="Trainer is not assigned to this cohort.")
         raise HTTPException(status_code=500, detail="Internal server error")
@@ -313,9 +309,10 @@ def list_cohort_classes(cohort_id: int, db = Depends(database.get_db)):
 
 
 
-# ==========================================
-# 6 & 7. ATTENDANCE ENDPOINTS
-# ==========================================
+#attendance endpoints
+
+
+###################################
 
 @app.post("/classes/{class_id}/attendance")
 def record_attendance(class_id: int, submission: schemas.BulkAttendanceSubmit, db = Depends(database.get_db)):
@@ -379,10 +376,9 @@ def record_attendance(class_id: int, submission: schemas.BulkAttendanceSubmit, d
 
 
 
-# ==========================================
-# 8, 9 & 10. REPORTS ENDPOINTS
-# ==========================================
 
+
+#reports endpoints
 @app.get("/cohorts/{cohort_id}/report", response_model=list[schemas.TraineeReport])
 def get_cohort_report(cohort_id: int, db = Depends(database.get_db)):
     """
@@ -390,7 +386,7 @@ def get_cohort_report(cohort_id: int, db = Depends(database.get_db)):
     Shows every trainee, their status counts, attendance rate, and flags < 75%.
     """
     with db.cursor(row_factory=dict_row) as cur:
-        # SQL to get the counts for every student enrolled in the cohort
+        # get the counts for every student enrolled in the cohort
         cur.execute("""
             SELECT 
                 t.id AS trainee_id,
@@ -437,7 +433,8 @@ def get_cohort_report(cohort_id: int, db = Depends(database.get_db)):
 
 @app.get("/cohorts/{cohort_id}/trainees/{trainee_id}/history", response_model=list[schemas.TraineeHistoryRecord])
 def get_trainee_history(cohort_id: int, trainee_id: int, db = Depends(database.get_db)):
-    """Requirement #9: Trainee history for one cohort in date order."""
+
+    """Trainee history for one cohort in date order."""
     with db.cursor(row_factory=dict_row) as cur:
         cur.execute("""
             SELECT c.id AS class_id, c.date, c.topic, a.status
