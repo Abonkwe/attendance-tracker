@@ -28,4 +28,4 @@ A full-stack application developed for the iSpark Inno technical assessment. The
 
 **1. Navigate to the project directory:**
 ```bash
-cd ispark_attendance
+cd "attendance tracker"
