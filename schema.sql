@@ -9,7 +9,7 @@ DROP TABLE IF EXISTS programs CASCADE;
 DROP TYPE IF EXISTS attendance_status CASCADE;
 
 -- 1. Status Enum
-CREATE TYPE attendance_status AS ENUM ('Present', 'Absent', 'Late', 'Excused');
+CREATE TYPE attendance_status AS ENUM ('Present', 'Absent');
 
 -- 2. Programs
 CREATE TABLE programs (
